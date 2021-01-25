@@ -167,10 +167,7 @@ def get_vm_info(vm_details, conn):
         ip_address = vm_details['aspects']['virtualMachineAspect']['ip']
 
     except KeyError:
-        umsg.log(f"No IP addresses found for VM {vm_details['displayName']} with UUID {vm_details['uuid']}",
-                 level='warn')
-        raise
-        # ip_address = []
+        ip_address = []
 
     return vm_oid, vm_name, ip_address
 
@@ -257,18 +254,23 @@ def get_turbo_vms(conn, start=None, end=None, step=100):
     return vm_list
 
 
-def match_apps_to_turbo_vms(apps, turbo_vms):
+def match_apps_to_turbo_vms(apps, turbo_vms, match_ip=True):
     for app in apps.values():
         for member in app.members:
             for vm in turbo_vms:
+                if match_ip:
+                    if (match_ip and len(set(member['ip_address']) & set(vm['ip_address'])) > 0):
+                        member['ip_address'] = vm['ip_address']
+                        member['turbo_oid'] = vm['uuid']
+                        app.member_uuids.add(vm['uuid'])
+                        break
 
-                # TODO: Change this to re-enable IP matching
-                if (vm['name'] == member['name'] and len(set(member['ip_address']) & set(vm['ip_address'])) > 0):
-                    # if vm['name'] == member['name']:
-                    member['ip_address'] = vm['ip_address']
-                    member['turbo_oid'] = vm['uuid']
-                    app.member_uuids.add(vm['uuid'])
-                    break
+                if not match_ip:
+                    if vm['name'] == member['name']:
+                        member['ip_address'] = vm['ip_address']
+                        member['turbo_oid'] = vm['uuid']
+                        app.member_uuids.add(vm['uuid'])
+                        break
 
     return apps
 
@@ -324,7 +326,7 @@ def main(config_file, username, password):
     vmt_conn = vc.Connection(args['TURBO_TARGET'], username, password)
 
     turbo_vms = get_turbo_vms(vmt_conn, start=0, end=500, step=500)
-    apps = match_apps_to_turbo_vms(apps, turbo_vms)
+    apps = match_apps_to_turbo_vms(apps, turbo_vms, args['MATCH_IP'])
 
     if args['APP_DEFINITION_METHOD'].upper() not in ('ATM', 'DIF'):
         umsg.log('APP_DEFINITION_METHOD must be either "ATM" or "DIF"',
