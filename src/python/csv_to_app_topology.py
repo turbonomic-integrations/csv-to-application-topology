@@ -39,6 +39,8 @@ class UserDefinedApp():
             matches = re.findall(regex_str, ips)
             ip_addresses.extend(matches)
 
+        # TODO: Handle lack of IP better to support name-only matching
+
         if not ip_addresses:
             raise NoIpAddressFound()
 
@@ -259,14 +261,15 @@ def match_apps_to_turbo_vms(apps, turbo_vms, match_ip=True):
         for member in app.members:
             for vm in turbo_vms:
                 if match_ip:
-                    if (match_ip and len(set(member['ip_address']) & set(vm['ip_address'])) > 0):
+                    if (vm['name'].lower() == member['name'].lower() and
+                            set(member['ip_address']) & set(vm['ip_address'])):
                         member['ip_address'] = vm['ip_address']
                         member['turbo_oid'] = vm['uuid']
                         app.member_uuids.add(vm['uuid'])
                         break
 
                 if not match_ip:
-                    if vm['name'] == member['name']:
+                    if vm['name'].lower() == member['name'].lower():
                         member['ip_address'] = vm['ip_address']
                         member['turbo_oid'] = vm['uuid']
                         app.member_uuids.add(vm['uuid'])
