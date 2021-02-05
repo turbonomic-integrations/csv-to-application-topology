@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: csv-to-app-topology-config
+  labels:
+    environment: prod
+    team: integration
+    app: csv-to-app-topology
+    version: 1.0.0
+data:
+  config.json: |
+    {
+      "TURBO_TARGET": "<instance_ip>",
+      "INPUT_CSV_DIR": "/opt/turbonomic",
+      "INPUT_CSV_NAME": "Filtered_Apps_Host_List.csv",
+      "INPUT_CSV_FIELD_MAP": {
+        "app_name": "Application Name",
+        "entity_name": "Hostname",
+        "entity_ip": "IP Address/s"
+      },
+      "APP_PREFIX": "MAN-",
+      "LOG_DIR": "",
+      "LOG_FILE": "",
+      "APP_DEFINITION_METHOD": "ATM",
+      "MATCH_IP": false
+    }

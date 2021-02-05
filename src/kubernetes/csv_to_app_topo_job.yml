@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: csv-to-app-topology
+spec:
+  template:
+    metadata:
+      labels:
+        environment: nonprod
+        team: integration
+        app: csv-to-app-topology
+        version: 1.0.0
+    spec:
+      containers:
+        - image: csv-to-app-topology:1.0.0
+          imagePullPolicy: IfNotPresent
+          name: csv-to-app-topology
+          envFrom:
+            - secretRef:
+                name: turboauth
+          volumeMounts:
+            - name: config
+              mountPath: /opt/turbonomic/data
+      volumes:
+        - name: config
+          configMap:
+            name: csv-to-app-topology-config
+      restartPolicy: Never
+
