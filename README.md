@@ -4,6 +4,7 @@
 This script takes a CSV as input and creates Business Applications in Turbonomic using the Application Topology feature. It runs as a Kubernetes Job in a Turbonomic Kubernetes cluster, and is intended for a one-time or ad-hoc execution.  
 
 There are two main ways to deliver the CSV data to the script:
+
 * Cloud-based storage (Azure Blob or AWS S3 are supported)
 * Local FTP container  
 
