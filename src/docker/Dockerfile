@@ -1,9 +1,12 @@
 FROM turbointegrations/base
 
+# Setup directory and scripts
 RUN mkdir -p /opt/turbonomic/data
-COPY ./csv_to_app_topology.py /opt/turbonomic/
-COPY ./Filtered_Apps_Host_List.csv /opt/turbonomic/Filtered_Apps_Host_List.csv
-COPY ./output_business_app.csv /opt/turbonomic/output_business_app.csv
-COPY ./output_svc_ci_assoc.csv /opt/turbonomic/output_svc_ci_assoc.csv
+RUN mkdir -p /opt/turbonomic/config
+COPY ./csv_to_app_topology.py /opt/turbonomic
 
-ENTRYPOINT python /opt/turbonomic/csv_to_app_topology.py /opt/turbonomic/data/config.json $VMT_USERNAME $VMT_PASSWORD
+# Download required Python packages
+RUN python -m pip install boto3
+RUN python -m pip install azure.storage.blob
+
+ENTRYPOINT python /opt/turbonomic/csv_to_app_topology.py /opt/turbonomic/config/config.json

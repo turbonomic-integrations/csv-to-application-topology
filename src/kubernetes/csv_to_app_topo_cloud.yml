@@ -12,7 +12,7 @@ spec:
         version: 1.0.0
     spec:
       containers:
-        - image: csv-to-app-topology:1.0.0
+        - image: csv-to-app-topology:latest
           imagePullPolicy: IfNotPresent
           name: csv-to-app-topology
           envFrom:
@@ -20,7 +20,7 @@ spec:
                 name: turboauth
           volumeMounts:
             - name: config
-              mountPath: /opt/turbonomic/data
+              mountPath: /opt/turbonomic/config
       volumes:
         - name: config
           configMap:

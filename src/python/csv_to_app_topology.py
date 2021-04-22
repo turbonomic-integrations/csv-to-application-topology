@@ -5,17 +5,31 @@ import logging
 import re
 import copy
 import os
+import time
+from io import StringIO
 
 import vmtconnect as vc
 import umsg
 import requests
+import boto3
+import azure.core.exceptions
+import botocore.exceptions
+from azure.storage.blob import BlobServiceClient
 
 
-class NoIpAddressFound(Exception):
+class IpAddressNotFoundError(Exception):
     pass
 
 
-class UnknownAppDefinitionMethod(Exception):
+class InvalidConfigError(Exception):
+    pass
+
+
+class CsvDownloadError(Exception):
+    pass
+
+
+class CsvFileNotFoundError(CsvDownloadError):
     pass
 
 
@@ -30,26 +44,46 @@ class UserDefinedApp():
     @staticmethod
     def _process_ips(ips):
         ip_addresses = []
+        ip_regex = r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"
 
         if isinstance(ips, list):
-            ip_addresses.extend(ips)
+            for ip in ips:
+                matches = re.findall(ip_regex, ips)
+                ip_addresses.extend(matches)
 
         if isinstance(ips, str):
-            regex_str = "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b"
-            matches = re.findall(regex_str, ips)
+            matches = re.findall(ip_regex, ips)
             ip_addresses.extend(matches)
 
-        # TODO: Handle lack of IP better to support name-only matching
-
         if not ip_addresses:
-            raise NoIpAddressFound()
+            raise IpAddressNotFoundError()
 
-        return ip_addresses
+        return ','.join(ip_addresses)
+
+    def _prep_app_topo_dto(self):
+        dto_template = {"displayName": self.name,
+                        "entityType": "BusinessApplication",
+                        "entityDefinitionData": {
+                            "manualConnectionData": {
+                                "VirtualMachine": {
+                                    "staticConnections": list(self.member_uuids)
+                                    }
+                                }
+                            }
+                        }
+        return json.dumps(dto_template)
 
     def add_member(self, member_name, member_ip):
         member_info = {'name': member_name,
-                       'ip_address': self._process_ips(member_ip),
+                       'ip_address': '',
                        'turbo_oid': None}
+
+        try:
+            member_info['ip_address'] = self._process_ips(member_ip)
+
+        except IpAddressNotFoundError:
+            umsg.log(f'No IP address defined for VM {member_name}', level='debug')
+            pass
 
         if member_info in self.members:
             umsg.log(f'Member {member_info["name"]} already exists in {self.name} application group',
@@ -69,45 +103,160 @@ class UserDefinedApp():
             if not member['turbo_oid']:
                 self.del_member(member)
 
-    def send_to_appl_topo(self, conn):
+    def create_appl_topo(self, conn):
         umsg.log(f'Creating application for BusinessApplication named: {self.name}')
-        dto_template = {"displayName": self.name,
-                        "entityType": "BusinessApplication",
-                        "entityDefinitionData": {
-                            "manualConnectionData": {
-                                "VirtualMachine": {
-                                    "staticConnections": list(self.member_uuids)
-                                    }
-                                }
-                            },
-                        }
-        dto = json.dumps(dto_template)
+        dto = self._prep_app_topo_dto()
         res = conn.request('topologydefinitions', method='POST', dto=dto)
-        umsg.log(f'Successfully created app {self.name}. Details: {res}')
+        umsg.log(f'Successfully created app {self.name}.')
+        umsg.log(f'Response Details: {res}', level='debug')
+
+        return True
+
+    def update_appl_topo(self, conn, uuid):
+        umsg.log(f'Updating BusinessApplication named: {self.name}')
+        dto = self._prep_app_topo_dto()
+        res = conn.request(f'topologydefinitions/{uuid}', method='PUT', dto=dto)
+        umsg.log(f'Successfully updated app {self.name}.')
+        umsg.log(f'Response Details: {res}', level='debug')
 
         return True
 
 
-def read_csv(filename):
-    """Read in CSV file to dict
-    Parameters:
-        filename - str - Path to CSV file
+class DifCsvReader():
+    def __init__(self, filename, csv_location, entity_headers, match_ip=False):
+        self.filename = filename
+        self.entity_headers = entity_headers
+        self.file_downloaded = False
+        self.match_ip = match_ip
+        self._check_headers()
+        self.process_csv_location(csv_location)
 
-    Returns:
-        List of dicts, where each dict is a row in the input CSV
-    """
-    data = []
-    with open(filename, 'r', encoding='utf-8-sig') as fp:
+    def _process_entity_headers(self, row):
+        entities = {}
+        for k, v in self.entity_headers.items():
+            try:
+                entities[k] = row[v]
+
+            except KeyError:
+                umsg.log(f'Incorrect entity field map entry: key: {k}, value: {v}', level='error')
+                raise
+
+        return entities
+
+    def _check_headers(self):
+        """Initialize default header dictionaries based on header type"""
+        valid_entity_columns = {'app_name', 'entity_name', 'entity_ip'}
+
+        if self.match_ip and 'entity_ip' not in self.entity_headers.keys():
+            msg = f'entity_ip must be defined when MATCH_IP is True'
+            umsg.log(msg, level='error')
+            raise InvalidConfigError(msg)
+
+        if self.entity_headers:
+            bad_headers = set(self.entity_headers.keys()) - valid_entity_columns
+            if bad_headers:
+                msg = f'The following entity field map keys are invalid: [ {", ".join(bad_headers)} ]'
+                umsg.log(msg, level='error')
+                raise InvalidConfigError(msg)
+
+        else:
+            umsg.log(f'No CSV entity header mapping provided, using defaults',
+                     level='warn')
+            self.entity_headers = {x: x for x in valid_entity_columns}
+
+    def process_csv_location(self, provider):
+        if provider not in {'AZURE', 'AWS', 'FTP'}:
+            umsg.log('Value for CSV_LOCATION is invalid. It must be one of: [ AZURE, AWS, FTP ]',
+                     level='error')
+            raise InvalidConfigError()
+
+        if provider == 'AZURE':
+            self.provider = 'AZURE'
+            self.connect_str = os.environ['AZURE_CONNECTION_STRING']
+            self.container_name = os.environ['AZURE_CONTAINER_NAME']
+
+        if provider == 'AWS':
+            self.provider = 'AWS'
+            self.access_key_id = os.environ['AWS_ACCESS_KEY_ID']
+            self.secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
+            self.region_name = os.environ['AWS_REGION_NAME']
+            self.bucket_name = os.environ['AWS_BUCKET_NAME']
+
+        if provider == 'FTP':
+            self.provider = 'FTP'
+            self.path = os.environ.get('FILE_PATH', '/opt/turbonomic/data')
+
+    def download_csv_data(self):
+        umsg.log(f'Downloading CSV data from {self.provider}')
         try:
-            csv_data = csv.DictReader(fp)
-            for row in csv_data:
-                data.append(row)
+            if self.provider == 'AZURE':
+                service_client = BlobServiceClient.from_connection_string(self.connect_str)
+                blob_client = service_client.get_blob_client(container=self.container_name,
+                                                             blob=self.filename)
+                file_data = blob_client.download_blob().readall()
+                file = file_data.decode('utf-8-sig')
 
-        except Exception as e:
-            umsg.log(f'Error reading input CSV: {e}', level='error')
-            raise e
+            if self.provider == 'AWS':
+                s3_client = boto3.resource(service_name='s3',
+                                           region_name=self.region_name,
+                                           aws_access_key_id=self.access_key_id,
+                                           aws_secret_access_key=self.secret_access_key)
+                try:
+                    file_data = s3_client.Object(self.bucket_name, self.filename).get()['Body'].read()
+                    file = file_data.decode('utf-8-sig')
 
-    return data
+                except s3_client.exceptions.NoSuchKey:
+                    raise FileNotFoundError
+
+            if self.provider == 'FTP':
+                filepath = os.path.join(self.path, self.filename)
+                with open(filepath, 'r', encoding='utf-8-sig') as fp:
+                    file = fp.read()
+
+        except (botocore.exceptions.ClientError,
+                botocore.exceptions.InvalidRegionError,
+                azure.core.exceptions.HttpResponseError) as e:
+            msg = f'Error connecting to cloud provider: {e}'
+            umsg.log(msg, level='error')
+            raise CsvDownloadError(msg)
+
+        except (azure.core.exceptions.ResourceNotFoundError, FileNotFoundError):
+            msg = 'CSV file not found'
+            umsg.log(msg, level='error')
+            raise CsvFileNotFoundError(msg)
+
+        self.file_downloaded = True
+
+        return StringIO(file)
+
+    def read_csv(self, csv_str_io):
+        """Parse CSV StringIO to dict
+        Parameters:
+            filename - StringIO - IO data from CSV file
+
+        Returns:
+            List of dicts, where each dict is a row in the input CSV
+        """
+        data = []
+        csv_data = csv.DictReader(csv_str_io)
+
+        row_count = 1
+        for row in csv_data:
+            row_count += 1
+
+            if not row[self.entity_headers['app_name']]:
+                umsg.log(f'No application defined on row {row_count} of input CSV, skipping',
+                         level='warn')
+                continue
+
+            try:
+                data.append(self._process_entity_headers(row))
+
+            except KeyError:
+                umsg.log(f'Something went wrong on line {row_count} while processing CSV')
+                raise
+
+        return data
 
 
 def read_config_file(config_file):
@@ -120,14 +269,11 @@ def read_config_file(config_file):
             umsg.log(f'{config_file} must be JSON format', level='error')
 
 
-def parse_csv_into_apps(csv_data, prefix,
-                        headers={'app_name': 'app_name',
-                                 'entity_name': 'vm_name',
-                                 'entity_ip': 'vm_ip'}):
+def parse_csv_into_apps(csv_data, prefix=''):
     """Parse input CSV into dictionary of UserDefinedApps
     Parameters:
         csv_data - list - List of dicts from read_csv
-        headers - dict - Optional mapping for user-defined CSV column names
+        prefix - str - Optional prefix for user-defined app name
     """
     app_dict = {}
     row_count = 1
@@ -136,12 +282,12 @@ def parse_csv_into_apps(csv_data, prefix,
 
     for row in csv_data:
         row_count += 1
-        if not row[headers['app_name']]:
+        if not row['app_name']:
             umsg.log(f'No application defined on row {row_count} of input CSV, skipping',
                      level='warn')
             continue
 
-        app_name = f"{prefix}{row[headers['app_name']]}"
+        app_name = f"{prefix}{row['app_name']}"
 
         if app_name in app_dict.keys():
             app = app_dict[app_name]
@@ -150,18 +296,13 @@ def parse_csv_into_apps(csv_data, prefix,
             app = UserDefinedApp(app_name)
             app_dict[app_name] = app
 
-        try:
-            app.add_member(member_name=row[headers['entity_name']],
-                           member_ip=row[headers['entity_ip']])
-
-        except NoIpAddressFound:
-            umsg.log(f'No IP address defined on row {row_count} of input CSV, skipping',
-                     level='warn')
+        app.add_member(member_name=row['entity_name'],
+                       member_ip=row.get('entity_ip'))
 
     return app_dict
 
 
-def get_vm_info(vm_details, conn):
+def get_vm_info(vm_details):
     vm_oid = vm_details['uuid']
     vm_name = vm_details['displayName']
 
@@ -190,7 +331,7 @@ def get_individual_vm_details(conn, uuids, count):
             continue
 
         try:
-            vm_details = get_vm_info(single_vm_results, conn)
+            vm_details = get_vm_info(single_vm_results)
 
         except KeyError:
             continue
@@ -211,7 +352,7 @@ def get_multiple_vm_details(conn, uuids, count):
                                                  aspects=['virtualMachineAspect'])[0]
         for vm in multi_vm_results['seMap']['VirtualMachine']['instances'].values():
             try:
-                vm_details = get_vm_info(vm, conn)
+                vm_details = get_vm_info(vm)
                 vm_list.append({'uuid': vm_details[0],
                                 'name': vm_details[1],
                                 'ip_address': vm_details[2]})
@@ -231,7 +372,6 @@ def get_turbo_vms(conn, start=None, end=None, step=100):
     uuids = [x['uuid']
              for x in conn.search(types=['VirtualMachine'],
                                   detail_type='compact')]
-
     if not start:
         start = 0
     if not end:
@@ -261,8 +401,10 @@ def match_apps_to_turbo_vms(apps, turbo_vms, match_ip=True):
         for member in app.members:
             for vm in turbo_vms:
                 if match_ip:
+                    vm_ips = set(member['ip_address'].split(','))
+
                     if (vm['name'].lower() == member['name'].lower() and
-                            set(member['ip_address']) & set(vm['ip_address'])):
+                            vm_ips & set(vm['ip_address'])):
                         member['ip_address'] = vm['ip_address']
                         member['turbo_oid'] = vm['uuid']
                         app.member_uuids.add(vm['uuid'])
@@ -279,33 +421,44 @@ def match_apps_to_turbo_vms(apps, turbo_vms, match_ip=True):
 
 
 def make_apps_thru_atm(conn, apps):
-    current_apps = {app['displayName']
+    current_apps = {app['displayName']: app['uuid']
                     for app in conn.request('topologydefinitions')}
 
     for app in apps.values():
         if not app.member_uuids:
             umsg.log(f'No matching VMs found for app named: {app.name}, skipping')
+            continue
 
-        elif app.name in current_apps:
-            umsg.log(f'Application named {app.name} already exists in {conn.host}, skipping')
+        app.remove_members_without_matches()
 
-        else:
-            app.remove_members_without_matches()
-            app.send_to_appl_topo(conn)
+        try:
+            app.update_appl_topo(conn, current_apps[app.name])
+
+        except KeyError:
+            app.create_appl_topo(conn)
 
     return True
 
 
-def make_apps_thru_dif():
-    pass
+def get_csv_data(filename, csv_location, entity_headers, match_ip):
+    reader = DifCsvReader(filename, csv_location, entity_headers, match_ip)
+    while not reader.file_downloaded:
+        try:
+            data = reader.download_csv_data()
+
+        except CsvFileNotFoundError:
+            umsg.log('No CSV found, waiting and then retrying')
+            time.sleep(60)
+
+    return reader.read_csv(data)
 
 
-def main(config_file, username, password):
+def main(config_file):
     args = read_config_file(config_file)
 
     requests.packages.urllib3.disable_warnings(
         requests.packages.urllib3.exceptions.InsecureRequestWarning)
-    umsg.init(level='debug')
+    umsg.init(level=args.get('LOG_LEVEL', 'info'))
     log_file = os.path.join(args['LOG_DIR'], args['LOG_FILE'])
 
     if log_file:
@@ -321,29 +474,20 @@ def main(config_file, username, password):
         umsg.add_handler(logging.StreamHandler())
 
     umsg.log('Starting script')
-    csv_file = os.path.join(args['INPUT_CSV_DIR'], args['INPUT_CSV_NAME'])
-    csv = read_csv(csv_file)
-    apps = parse_csv_into_apps(csv, args['APP_PREFIX'],
-                               headers=args['INPUT_CSV_FIELD_MAP'])
-
-    vmt_conn = vc.Connection(args['TURBO_TARGET'], username, password)
-
+    csv_data = get_csv_data(filename=args['INPUT_CSV_NAME'],
+                            csv_location=args['CSV_LOCATION'],
+                            entity_headers=args['ENTITY_FIELD_MAP'],
+                            match_ip=args['MATCH_IP'])
+    apps = parse_csv_into_apps(csv_data, args['APP_PREFIX'])
+    vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
+                             os.environ['TURBO_USERNAME'],
+                             os.environ['TURBO_PASSWORD'])
     turbo_vms = get_turbo_vms(vmt_conn, start=0, end=500, step=500)
     apps = match_apps_to_turbo_vms(apps, turbo_vms, args['MATCH_IP'])
-
-    if args['APP_DEFINITION_METHOD'].upper() not in ('ATM', 'DIF'):
-        umsg.log('APP_DEFINITION_METHOD must be either "ATM" or "DIF"',
-                 level='error')
-        raise UnknownAppDefinitionMethod()
-
-    if args['APP_DEFINITION_METHOD'].upper() == 'ATM':
-        make_apps_thru_atm(vmt_conn, apps)
-
-    if args['APP_DEFINITION_METHOD'].upper() == 'DIF':
-        make_apps_thru_dif(vmt_conn, apps)
+    make_apps_thru_atm(vmt_conn, apps)
 
     umsg.log('Finished script')
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2], sys.argv[3])
+    main(sys.argv[1])

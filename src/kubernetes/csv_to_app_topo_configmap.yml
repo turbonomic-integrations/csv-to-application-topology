@@ -10,17 +10,16 @@ metadata:
 data:
   config.json: |
     {
-      "TURBO_TARGET": "<instance_ip>",
-      "INPUT_CSV_DIR": "/opt/turbonomic",
-      "INPUT_CSV_NAME": "Filtered_Apps_Host_List.csv",
-      "INPUT_CSV_FIELD_MAP": {
-        "app_name": "Application Name",
-        "entity_name": "Hostname",
-        "entity_ip": "IP Address/s"
+      "INPUT_CSV_NAME": "test_csv.csv",
+      "CSV_LOCATION": "FTP",
+      "ENTITY_FIELD_MAP": {
+        "app_name": "",
+        "entity_name": "",
+        "entity_ip": ""
       },
-      "APP_PREFIX": "MAN-",
+      "APP_PREFIX": "ATM-",
       "LOG_DIR": "",
       "LOG_FILE": "",
-      "APP_DEFINITION_METHOD": "ATM",
+      "LOG_LEVEL": "DEBUG",
       "MATCH_IP": false
     }
