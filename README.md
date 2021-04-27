@@ -12,15 +12,15 @@ The setup and files required will be different depending on whether you choose C
 
 All credentials for accessing both the Turbonomic API and Cloud providers are presented through Kubernetes secrets, detailed below in the **Secret Details** section.  
 
-Lastly, The script also requires a config file, implemented as a Kubernetes configMap, that includes a mapping of the columns provided in the input CSV to a common name that the script can use. Additional configs are detailed below in the **ConfigMap Details** section.
+Lastly, the script also requires a config file that is implemented as a Kubernetes configMap. This config includes a mapping of the columns provided in the input CSV to a common name that the script can use. The column mapping is optional; if no mapping is provided the script will use the default field names defined below (app_name, entity_name, and entity_ip). An error will be raised if the input CSV has different column names from these defaults and no mapping is provided in the config. Additional configs are detailed below in the **ConfigMap Details** section.
 
-Examples of each of the necessary Kubernetes YAML files are included, so please take a look at those if anything is unclear.  
+Examples of each of the necessary Kubernetes YAML files are included in the /src/kubernetes folder of this repo, so please take a look at those if anything is unclear.  
 
 ### Script Setup    
-1. Upload required containers  
-    * FTP: *turbointegrations/csv-to-app-topology*, *turbointegrations/turbo-ftp*
-    * Cloud: *turbointegrations/csv-to-app-topology*  
-    * If needed, the container images can be manually downloaded from DockerHub:
+1. Upload required containers
+    * Script container: *turbointegrations/csv-to-app-topology*
+    * If using the FTP method, you will also need the ftp container: *turbointegrations/turbo-ftp* 
+    * The container images are hosted on DockerHub:
         * [turbointegrations/csv-to-app-topology](https://hub.docker.com/r/turbointegrations/csv-to-app-topology) or using the command `docker pull turbointegrations/csv-to-app-topology`
         * [turbointegrations/turbo-ftp](https://hub.docker.com/r/turbointegrations/turbo-ftp) or using the command `docker pull turbointegrations/turbo-ftp`
 2. Complete and upload secrets yaml (see **Secret Details** below for further details)
@@ -43,7 +43,7 @@ Examples of each of the necessary Kubernetes YAML files are included, so please 
         - entity_name - VM name
         - entity_ip - VM IP address (optional if MATCH_IP is false) 
 * MATCH_IP - True/False flag to enforce strict VM matching based on input IP address. If *false*, matches between input CSV and Turbonomic system will be based on VM name only.
-* APP_PREFIX - Optional Prefix for Business App names
+* APP_PREFIX - Optional Prefix for Business App names as they appear in the Turbonomic UI
 * LOG_DIR - Optional log directory for persistent log files. Defaults to Container STDOUT
 * LOG_FILE - Optional log file for persistent log files. Defaults to Container STDOUT
 * LOG_LEVEL - Optional flag for setting logging level. One of *DEBUG*, *INFO*, *WARNING*, *ERROR*. Defaults to INFO
