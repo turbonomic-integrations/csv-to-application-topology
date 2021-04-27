@@ -8,7 +8,7 @@ There are two main ways to deliver the CSV data to the script:
 * Cloud-based storage (Azure Blob or AWS S3 are supported)
 * Local FTP container  
 
-The setup and files required will be different depending on whether you choose Cloud or FTP, so please read through the **Script Setup** carefully. Either way, once the script is done running, the containers supporting it will be stopped, so if using the FTP, it will only be accessible until the process finishes.  
+The setup and files required will be different depending on whether you choose Cloud or FTP, so please read through the **Script Setup** carefully. Either way, once the script is done running the all containers supporting it will be stopped. 
 
 All credentials for accessing both the Turbonomic API and Cloud providers are presented through Kubernetes secrets, detailed below in the **Secret Details** section.  
 
@@ -18,8 +18,11 @@ Examples of each of the necessary Kubernetes YAML files are included, so please 
 
 ### Script Setup    
 1. Upload required containers  
-    * FTP: *csv-to-app-topo*, *dif-ftp*
-    * Cloud: *csv-to-app-topo*  
+    * FTP: *turbointegrations/csv-to-app-topology*, *turbointegrations/turbo-ftp*
+    * Cloud: *turbointegrations/csv-to-app-topology*  
+    * If needed, the container images can be manually downloaded from DockerHub:
+        * [turbointegrations/csv-to-app-topology](https://hub.docker.com/r/turbointegrations/csv-to-app-topology) or using the command `docker pull turbointegrations/csv-to-app-topology`
+        * [turbointegrations/turbo-ftp](https://hub.docker.com/r/turbointegrations/turbo-ftp) or using the command `docker pull turbointegrations/turbo-ftp`
 2. Complete and upload secrets yaml (see **Secret Details** below for further details)
     * `kubectl apply -f turboauth_secret.yml`
 3. Complete and upload the ConfigMap with the appropriate fields (see **ConfigMap Details** below for further details)
