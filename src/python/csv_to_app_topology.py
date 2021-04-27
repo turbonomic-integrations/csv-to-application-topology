@@ -147,11 +147,6 @@ class DifCsvReader():
         """Initialize default header dictionaries based on header type"""
         valid_entity_columns = {'app_name', 'entity_name', 'entity_ip'}
 
-        if self.match_ip and 'entity_ip' not in self.entity_headers.keys():
-            msg = f'entity_ip must be defined when MATCH_IP is True'
-            umsg.log(msg, level='error')
-            raise InvalidConfigError(msg)
-
         if self.entity_headers:
             bad_headers = set(self.entity_headers.keys()) - valid_entity_columns
             if bad_headers:
@@ -163,6 +158,11 @@ class DifCsvReader():
             umsg.log(f'No CSV entity header mapping provided, using defaults',
                      level='warn')
             self.entity_headers = {x: x for x in valid_entity_columns}
+
+        if self.match_ip and 'entity_ip' not in self.entity_headers.keys():
+            msg = f'entity_ip must be defined when MATCH_IP is True'
+            umsg.log(msg, level='error')
+            raise InvalidConfigError(msg)
 
     def process_csv_location(self, provider):
         if provider not in {'AZURE', 'AWS', 'FTP'}:
@@ -476,7 +476,7 @@ def main(config_file):
     umsg.log('Starting script')
     csv_data = get_csv_data(filename=args['INPUT_CSV_NAME'],
                             csv_location=args['CSV_LOCATION'],
-                            entity_headers=args['ENTITY_FIELD_MAP'],
+                            entity_headers=args.get('ENTITY_FIELD_MAP'),
                             match_ip=args['MATCH_IP'])
     apps = parse_csv_into_apps(csv_data, args['APP_PREFIX'])
     vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
