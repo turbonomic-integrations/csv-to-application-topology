@@ -477,13 +477,13 @@ def main(config_file):
     csv_data = get_csv_data(filename=args['INPUT_CSV_NAME'],
                             csv_location=args['CSV_LOCATION'],
                             entity_headers=args.get('ENTITY_FIELD_MAP'),
-                            match_ip=args['MATCH_IP'])
+                            match_ip=args.get('MATCH_IP', False))
     apps = parse_csv_into_apps(csv_data, args['APP_PREFIX'])
     vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
                              os.environ['TURBO_USERNAME'],
                              os.environ['TURBO_PASSWORD'])
     turbo_vms = get_turbo_vms(vmt_conn, start=0, end=500, step=500)
-    apps = match_apps_to_turbo_vms(apps, turbo_vms, args['MATCH_IP'])
+    apps = match_apps_to_turbo_vms(apps, turbo_vms, args.get('MATCH_IP', False))
     make_apps_thru_atm(vmt_conn, apps)
 
     umsg.log('Finished script')
