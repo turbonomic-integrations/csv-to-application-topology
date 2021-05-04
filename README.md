@@ -1,7 +1,7 @@
 ## CSV to Application Topology Mapping
 
 ### Description
-This script takes a CSV as input and creates Business Applications in Turbonomic using the Application Topology feature. It runs as a Kubernetes Job in a Turbonomic Kubernetes cluster, and is intended for a one-time or ad-hoc execution.  
+This script takes a CSV as input and creates Business Applications in Turbonomic using the Application Topology feature. It runs as a Kubernetes Job in a Turbonomic Kubernetes cluster, and is intended for a one-time or ad-hoc execution. If the script is run a second time on the same Turbonomic instance, the existing Application Topology Definitions will be updated based on the input CSV provided at the time of execution.
 
 There are two main ways to deliver the CSV data to the script:
 
@@ -14,7 +14,7 @@ All credentials for accessing both the Turbonomic API and Cloud providers are pr
 
 Lastly, the script also requires a config file that is implemented as a Kubernetes configMap. This config includes a mapping of the columns provided in the input CSV to a common name that the script can use. The column mapping is optional; if no mapping is provided the script will use the default field names defined below (app_name, entity_name, and entity_ip). An error will be raised if the input CSV has different column names from these defaults and no mapping is provided in the config. Additional configs are detailed below in the **ConfigMap Details** section.
 
-Examples of each of the necessary Kubernetes YAML files are included in the /src/kubernetes folder of this repo, so please take a look at those if anything is unclear.  
+Examples of each of the necessary Kubernetes YAML files are included in the /src/kubernetes folder of this repo, so please take a look at those if anything is unclear. The example CSV and configMap included in the repo illustrates the name mapping required in the ENTITY_FIELD_MAP parameter. 
 
 ### Script Setup    
 1. Upload required containers
@@ -42,7 +42,7 @@ Examples of each of the necessary Kubernetes YAML files are included in the /src
         - app_name - Business App name
         - entity_name - VM name
         - entity_ip - VM IP address (optional if MATCH_IP is false) 
-* MATCH_IP - True/False flag to enforce strict VM matching based on input IP address. If *false*, matches between input CSV and Turbonomic system will be based on VM name only.
+* MATCH_IP - Optional True/False flag to enforce strict VM matching based on input IP address. If *false*, matches between input CSV and Turbonomic system will be based on VM name only. Defaults to False
 * APP_PREFIX - Optional Prefix for Business App names as they appear in the Turbonomic UI
 * LOG_DIR - Optional log directory for persistent log files. Defaults to Container STDOUT
 * LOG_FILE - Optional log file for persistent log files. Defaults to Container STDOUT
