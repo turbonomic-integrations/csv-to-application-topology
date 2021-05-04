@@ -1,0 +1,4 @@
+Application Name,VM Name,VM IP Address
+App1,VM1,0.0.0.0
+App1,VM2,1.1.1.1
+App2,VM3,2.2.2.2

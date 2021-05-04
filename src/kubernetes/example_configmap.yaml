@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: csv-to-app-topology-config
+  labels:
+    environment: prod
+    team: integration
+    app: csv-to-app-topology
+    version: 1.0.0
+data:
+  config.json: |
+    {
+      "INPUT_CSV_NAME": "test_csv.csv",
+      "CSV_LOCATION": "AZURE",
+      "ENTITY_FIELD_MAP": {
+        "app_name": "Application Name",
+        "entity_name": "VM Name",
+        "entity_ip": "VM IP Address"
+      },
+      "APP_PREFIX": "ATM-",
+      "LOG_DIR": "",
+      "LOG_FILE": "",
+      "LOG_LEVEL": "DEBUG",
+      "MATCH_IP": true
+    }
