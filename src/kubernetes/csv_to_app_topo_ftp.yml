@@ -35,7 +35,7 @@ spec:
         version: 1.0.0
     spec:
       containers:
-        - image: turbointegrations/csv-to-app-topology:latest
+        - image: turbointegrations/csv-to-app-topology:1.0.1
           imagePullPolicy: IfNotPresent
           name: csv-to-app-topology
           envFrom:
@@ -46,7 +46,7 @@ spec:
               mountPath: /opt/turbonomic/config
             - name: shared-data
               mountPath: /opt/turbonomic/data
-        - image: turbointegrations/turbo-ftp:latest
+        - image: turbointegrations/turbo-ftp:1.0.1
           imagePullPolicy: IfNotPresent
           name: turbo-ftp
           ports:
