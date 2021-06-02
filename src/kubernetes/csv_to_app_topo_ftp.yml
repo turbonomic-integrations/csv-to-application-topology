@@ -2,6 +2,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: csv-to-app-topology
+  namespace: turbointegrations
+  labels:
+    app: csv-to-app-topology
 spec:
   selector:
     app: csv-to-app-topology
@@ -25,6 +28,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: csv-to-app-topology
+  namespace: turbointegrations
 spec:
   template:
     metadata:
