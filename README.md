@@ -21,17 +21,19 @@ Examples of each of the necessary Kubernetes YAML files are included in the /src
     * Script container: *turbointegrations/csv-to-app-topology*
     * If using the FTP method, you will also need the ftp container: *turbointegrations/turbo-ftp* 
     * The container images are hosted on DockerHub:
-        * [turbointegrations/csv-to-app-topology](https://hub.docker.com/r/turbointegrations/csv-to-app-topology) or using the command `docker pull turbointegrations/csv-to-app-topology`
-        * [turbointegrations/turbo-ftp](https://hub.docker.com/r/turbointegrations/turbo-ftp) or using the command `docker pull turbointegrations/turbo-ftp`
-2. Complete and upload secrets yaml (see **Secret Details** below for further details)
+        * [turbointegrations/csv-to-app-topology](https://hub.docker.com/r/turbointegrations/csv-to-app-topology) or using the command `docker pull turbointegrations/csv-to-app-topology:1.0.1`
+        * [turbointegrations/turbo-ftp](https://hub.docker.com/r/turbointegrations/turbo-ftp) or using the command `docker pull turbointegrations/turbo-ftp:1.0.1`
+2. If the `turbointegrations` namespace does not exist, you must create it:
+    * `kubectl create namespace turbointegrations`
+3. Complete and upload secrets yaml (see **Secret Details** below for further details)
     * `kubectl apply -f turboauth_secret.yml`
-3. Complete and upload the ConfigMap with the appropriate fields (see **ConfigMap Details** below for further details)
+4. Complete and upload the ConfigMap with the appropriate fields (see **ConfigMap Details** below for further details)
     * `kubectl apply -f csv_to_app_topo_configmap.yml`
-4. Upload and apply Job yaml definition
+5. Upload and apply Job yaml definition
     * FTP: `kubectl apply -f csv_to_app_topo_ftp.yml`
     * Cloud: `kubectl apply -f csv_to_app_topo_cloud.yml`
-5. Upload CSV to either FTP or Cloud destination
-    * FTP: The FTP can be accessed via port 31234 on the Turbonomic instance, with passive connection on ports 30020 and 30021
+6. Upload CSV to either FTP or Cloud destination
+    * FTP: The FTP can be accessed with an anonymous user via port 31234 on the Turbonomic instance, with passive connection on ports 30020 and 30021
     * Cloud: The Turbonomic instance must have connection to the outside internet
 
 ### ConfigMap Details  
