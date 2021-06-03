@@ -459,7 +459,7 @@ def main(config_file):
     requests.packages.urllib3.disable_warnings(
         requests.packages.urllib3.exceptions.InsecureRequestWarning)
     umsg.init(level=args.get('LOG_LEVEL', 'info'))
-    log_file = os.path.join(args['LOG_DIR'], args['LOG_FILE'])
+    log_file = os.path.join(args.get('LOG_DIR', ''), args.get('LOG_FILE', ''))
 
     if log_file:
         handler = logging.handlers.RotatingFileHandler(log_file,
@@ -478,7 +478,7 @@ def main(config_file):
                             csv_location=args['CSV_LOCATION'],
                             entity_headers=args.get('ENTITY_FIELD_MAP'),
                             match_ip=args.get('MATCH_IP', False))
-    apps = parse_csv_into_apps(csv_data, args['APP_PREFIX'])
+    apps = parse_csv_into_apps(csv_data, args.get('APP_PREFIX', ''))
     vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
                              os.environ['TURBO_USERNAME'],
                              os.environ['TURBO_PASSWORD'])
