@@ -26,7 +26,6 @@ Examples of each of the necessary Kubernetes YAML files are included in the /src
 2. If the `turbointegrations` namespace does not exist, you must create it:
     * `kubectl create namespace turbointegrations`
 3. Complete and upload secrets yaml (see **Secret Details** below for further details)
-    * `kubectl apply -f turboauth_secret.yml`
 4. Complete and upload the ConfigMap with the appropriate fields (see **ConfigMap Details** below for further details)
     * `kubectl apply -f csv_to_app_topo_configmap.yml`
 5. Upload and apply Job yaml definition
@@ -77,6 +76,17 @@ Depending on CSV_LOCATION, you will need to add the following fields to the secr
 
 ##### Local FTP Server:
 1. No additional action needed
+
+##### Secret Example
+To create the secret, you can run a command like the following, replacing all of the values with your actual information:
+* kubectl create secret generic turboauth -n turbointegrations \
+            --from-literal=TURBO_ADDRESS=my.turbo.instance.com \
+            --from-literal=TURBO_USERNAME=MyTurboAdmin \
+            --from-literal=TURBO_PASSWORD=MyPassword \
+            --from-literal=AZURE_CONTAINER_NAME=MyContainerName \
+            --from-literal=AZURE_CONNECTION_STRING=MyConnectionString
+
+This command includes all of the required secrets to run this script with a CSV in Azure. Change the parameters to include the required fields as specified above if you are trying to run against a CSV in AWS or using the local FTP.
 
 ### Logs
 By default, if no persistent logs are defined in the ConfigMap input, the script logs can be accessed by connecting directly to the container output:  
