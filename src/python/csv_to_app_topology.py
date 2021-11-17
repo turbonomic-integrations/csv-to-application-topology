@@ -181,6 +181,7 @@ class DifCsvReader():
             self.secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
             self.region_name = os.environ['AWS_REGION_NAME']
             self.bucket_name = os.environ['AWS_BUCKET_NAME']
+            self.endpoint_url = os.environ.get('AWS_ENDPOINT_URL', None)
 
         if provider == 'FTP':
             self.provider = 'FTP'
@@ -200,12 +201,13 @@ class DifCsvReader():
                 s3_client = boto3.resource(service_name='s3',
                                            region_name=self.region_name,
                                            aws_access_key_id=self.access_key_id,
-                                           aws_secret_access_key=self.secret_access_key)
+                                           aws_secret_access_key=self.secret_access_key,
+                                           endpoint_url=self.endpoint_url)
                 try:
                     file_data = s3_client.Object(self.bucket_name, self.filename).get()['Body'].read()
                     file = file_data.decode('utf-8-sig')
 
-                except s3_client.exceptions.NoSuchKey:
+                except s3_client.meta.client.exceptions.NoSuchKey:
                     raise FileNotFoundError
 
             if self.provider == 'FTP':
