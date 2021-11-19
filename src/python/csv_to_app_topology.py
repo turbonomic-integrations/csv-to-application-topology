@@ -179,7 +179,7 @@ class DifCsvReader():
             self.provider = 'AWS'
             self.access_key_id = os.environ['AWS_ACCESS_KEY_ID']
             self.secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
-            self.region_name = os.environ['AWS_REGION_NAME']
+            self.region_name = os.environ.get('AWS_REGION_NAME', None)
             self.bucket_name = os.environ['AWS_BUCKET_NAME']
             self.endpoint_url = os.environ.get('AWS_ENDPOINT_URL', None)
 
