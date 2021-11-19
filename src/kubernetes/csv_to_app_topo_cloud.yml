@@ -15,7 +15,7 @@ spec:
         version: 1.0.0
     spec:
       containers:
-        - image: turbointegrations/csv-to-app-topology:1.0.1
+        - image: turbointegrations/csv-to-app-topology:1.0.3
           imagePullPolicy: IfNotPresent
           name: csv-to-app-topology
           envFrom:
@@ -29,4 +29,3 @@ spec:
           configMap:
             name: csv-to-app-topology-config
       restartPolicy: Never
-
