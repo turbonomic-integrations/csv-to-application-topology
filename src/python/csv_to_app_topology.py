@@ -155,12 +155,12 @@ class DifCsvReader():
                 raise InvalidConfigError(msg)
 
         else:
-            umsg.log(f'No CSV entity header mapping provided, using defaults',
+            umsg.log('No CSV entity header mapping provided, using defaults',
                      level='warn')
             self.entity_headers = {x: x for x in valid_entity_columns}
 
         if self.match_ip and 'entity_ip' not in self.entity_headers.keys():
-            msg = f'entity_ip must be defined when MATCH_IP is True'
+            msg = 'entity_ip must be defined when MATCH_IP is True'
             umsg.log(msg, level='error')
             raise InvalidConfigError(msg)
 
@@ -481,9 +481,18 @@ def main(config_file):
                             entity_headers=args.get('ENTITY_FIELD_MAP'),
                             match_ip=args.get('MATCH_IP', False))
     apps = parse_csv_into_apps(csv_data, args.get('APP_PREFIX', ''))
-    vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
-                             os.environ['TURBO_USERNAME'],
-                             os.environ['TURBO_PASSWORD'])
+
+    if args.get('IGNORE_TURBO_VERSION'):
+        spec = vc.VersionSpec(versions=[], required=False)
+        vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
+                                 os.environ['TURBO_USERNAME'],
+                                 os.environ['TURBO_PASSWORD'],
+                                 req_versions=spec)
+
+    else:
+        vmt_conn = vc.Connection(os.environ['TURBO_ADDRESS'],
+                                 os.environ['TURBO_USERNAME'],
+                                 os.environ['TURBO_PASSWORD'])
     turbo_vms = get_turbo_vms(vmt_conn, start=0, end=500, step=500)
     apps = match_apps_to_turbo_vms(apps, turbo_vms, args.get('MATCH_IP', False))
     make_apps_thru_atm(vmt_conn, apps)
